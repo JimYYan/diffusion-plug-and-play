@@ -3,18 +3,18 @@ conditioning:
   params:
     scale: 0.8
   nonunique_color: False
-  initializer:
-    method: ps
-    params:
-      scale: 0.8
+  # initializer:
+  #   method: ps
+  #   params:
+  #     scale: 0.8
 
 data:
   name: general
-  root: ./data/ffhq
+  root: ./data/ffhq_1k_samples
   # Uncomment the following and change the root therein to initialize with given images (e.g. outputs of LGD-MC)
-  # init_config:
-  #   name: general
-  #   root: ./results/coded_pr/recon/
+  init_config:
+    name: general
+    root: ./results/06-02/10:41/coded_pr/init # coded_pr/recon/
 
 measurement:
   operator:
@@ -23,5 +23,5 @@ measurement:
 
   noise: 
     name: gaussian
-    sigma: 0.2
+    sigma: 0.05
 

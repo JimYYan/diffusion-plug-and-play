@@ -1,0 +1,4 @@
+models/ffhq_10m.pt
+results/
+__pycache__/
+*.pyc

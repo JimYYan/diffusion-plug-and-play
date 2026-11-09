@@ -15,6 +15,7 @@ from guided_diffusion.condition_methods import get_conditioning_method
 from guided_diffusion.measurements import get_noise, get_operator
 from guided_diffusion.unet import create_model
 from guided_diffusion.gaussian_diffusion import create_sampler
+import guided_diffusion.frites  # registers 'frites' sampler and 'forward_sde' conditioning
 from data.dataloader import get_dataset, get_dataloader
 from util.img_utils import clear_color, mask_generator, prepare_im
 from util.logger import get_logger
@@ -89,14 +90,18 @@ def main():
     # Load diffusion sampler
     print(use_warm_start)
     sampler = create_sampler(adjust_color=adjust_color, warm_start=use_warm_start, **diffusion_config) 
+    # sample_fn = partial(sampler.p_sample_loop, model=model, measurement_cond_fn=measurement_cond_fn,
+    #                     **diffusion_config.get('params', {}))
     sample_fn = partial(sampler.p_sample_loop, model=model, measurement_cond_fn=measurement_cond_fn,
-                        **diffusion_config.get('params', {}))
+                    **{**diffusion_config.get('params', {}), **task_config.get('params', {})})
+
    
     # Working directory
     out_path = os.path.join(args.save_dir, datetime.now().strftime('%m-%d/%H:%M'), measure_config['operator']['name'])
     os.makedirs(out_path, exist_ok=True)
-    for img_dir in ['input', 'recon', 'progress', 'label']:
+    for img_dir in ['input', 'recon', 'progress', 'label', 'init']:
         os.makedirs(os.path.join(out_path, img_dir), exist_ok=True)
+    
 
     # Prepare dataloader
     data_config = task_config['data']
@@ -165,8 +170,10 @@ def main():
             x_start=x_start, 
             measurement=y_n, 
             default_cond_fn=default_cond_fn, 
-            record=True, 
-            save_root=out_path
+            record=False,
+            save_root=out_path,
+            ref_img=ref_img,
+            fname=fname
         )
 
         psnr_normal = peak_signal_noise_ratio(ref_img.detach().cpu().numpy(), sample.detach().cpu().numpy())
@@ -180,8 +187,16 @@ def main():
 
         normal_d = loss_fn_vgg(prepared_recon, prepared_ref_img)
 
-        print('LPIPS: ', normal_d.item(),
+        prepared_init_img = prepare_im(os.path.join(out_path, 'init', fname[:5] + 'init.png'), 256, device=device)
+        # prepared_init_img = prepare_im(os.path.join(out_path, 'progress', "init.png"), 256, device=device)
+        psnr_normal_init = peak_signal_noise_ratio(ref_img.detach().cpu().numpy(), prepared_init_img.detach().cpu().numpy())
+        normal_d_init = loss_fn_vgg(prepared_init_img, prepared_ref_img)
+
+        print('Init: LPIPS: ', normal_d_init.item(),
+            'Reconstruction MSE: ', psnr_normal_init)
+        print('Recon: LPIPS: ', normal_d.item(),
             'Reconstruction MSE: ', psnr_normal)
+        
 
 
 

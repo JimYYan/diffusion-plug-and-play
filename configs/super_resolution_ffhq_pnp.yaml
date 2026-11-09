@@ -2,19 +2,22 @@ conditioning:
   method: mala
   params:
     scale: 0.6
-  initializer:
-    method: lgd
-    params:
-      scale: 30.0
-      lambda: 0.001
+  # initializer:
+    # method: lgd
+    # params:
+    #   scale: 30.0
+    #   lambda: 0.001
+    # method: ps
+    # params:
+    #   scale: 1.0
 
 data:
   name: general
-  root: ./data/ffhq
+  root: ./data/ffhq_1k_samples
   # Uncomment the following and change the root therein to initialize with given images (e.g. outputs of LGD-MC)
-  # init_config:
-  #   name: general
-  #   root: ./results/super_resolution/recon/
+  init_config:
+    name: general
+    root: ./results/06-02/00:04/super_resolution/init # ./results/super_resolution/recon/
   
 
 measurement:
@@ -25,4 +28,4 @@ measurement:
   
   noise: 
     name: gaussian
-    sigma: 0.2
+    sigma: 0.05 # 0.2

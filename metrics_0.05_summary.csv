@@ -1,0 +1,10 @@
+task,algo,n,psnr_mean,ssim_mean,lpips_mean
+coded_pr,dps500,1000,18.4741,0.528,0.3479
+coded_pr,frites_dps500,1000,23.1483,0.6536,0.1968
+coded_pr,pnp_dps500,752,20.5101,0.5855,0.2802
+super_resolution,dps500,1000,25.1331,0.7173,0.1654
+super_resolution,frites_dps500,1000,27.7269,0.8045,0.1199
+super_resolution,frites_lgd500,1000,27.7208,0.8045,0.1207
+super_resolution,lgd500,1000,24.8426,0.7102,0.1698
+super_resolution,pnp_dps500,849,25.5581,0.7281,0.1485
+super_resolution,pnp_lgd500,826,25.5462,0.7272,0.1501

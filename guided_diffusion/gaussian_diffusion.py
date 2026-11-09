@@ -495,6 +495,17 @@ class DDIMPnP(SpacedDiffusion):
         else:
             img = x_start
         
+        # plt.imsave(
+        #     os.path.join(save_root, "progress/init.png"),
+        #     clear_color(img),
+        # )
+        fname = kwargs.get('fname', None)
+        if fname is not None:
+            plt.imsave(
+                os.path.join(save_root, 'init', fname[:5] + 'init.png'),
+                clear_color(img),
+            )
+
 
         device = x_start.device
 
@@ -720,7 +731,7 @@ class DDPMPnP(SpacedDiffusion):
                 measurement=measurement, 
                 record=False, 
                 save_root=save_root)
-   
+    
         else:
             img = x_start
         
@@ -743,6 +754,8 @@ class DDPMPnP(SpacedDiffusion):
         for idx, sigma in enumerate(pbar):
             
             sigma_torch = torch.tensor([sigma] * img.shape[0], device=device)
+            asdff = torch.tensor(1.).requires_grad_(True)
+            
             with torch.no_grad():
                 img = denoiser.denoise(noise_lvl=sigma_torch, model=model, x_noisy=img)
                 if record:
@@ -783,7 +796,8 @@ class DDPMDenoiser:
 
     def gen_schedule(self, noise_lvl):
         if isinstance(noise_lvl, torch.Tensor):
-            noise_lvl = noise_lvl.item()
+            # noise_lvl = noise_lvl.item()
+            noise_lvl = noise_lvl[0].item()
         time_mask = self.diffuser.alphas_cumprod > 1 / (1 + noise_lvl**2)
         masked_alphas_cumprod = self.diffuser.alphas_cumprod[time_mask]
         
@@ -828,6 +842,69 @@ class DDPMDenoiser:
                 x += sqrt_diff_t * w
 
         return x
+    
+    # def denoise_one_step(self, noise_lvl, model, x_noisy):
+    #     noise_lvl = noise_lvl.float()
+    #     self.gen_schedule(noise_lvl)
+    #     t_idx = len(self.ts) - 1
+    #     t_tensor = torch.tensor([t_idx] * x_noisy.shape[0], device=x_noisy.device)
+    #     out = self.diffuser.p_mean_variance(model, x_noisy, t_tensor)
+    #     sigma = noise_lvl[0].item()
+    #     alpha_bar_t = float(self.diffuser.alphas_cumprod[t_idx])
+    #     eps = (x_noisy - math.sqrt(alpha_bar_t) * out['pred_xstart']) / math.sqrt(1.0 - alpha_bar_t)
+    #     x_em = x_noisy - (sigma / 2.0) * eps - sigma * torch.randn_like(x_noisy)
+    #     return x_em, out['pred_xstart']
+
+    def denoise_ddim(self, noise_lvl, model, x_noisy, n_ddim=5, eta=0.0):
+        noise_lvl = noise_lvl.float()
+        sigma = noise_lvl[0].item()
+        alphas = self.diffuser.alphas_cumprod
+        valid_ts = np.where(alphas > 1.0 / (1.0 + sigma ** 2))[0]
+        t_max = int(valid_ts[-1])
+        n_ddim = min(n_ddim, t_max + 1)
+        step_ts = list(np.round(np.linspace(t_max, 0, n_ddim)).astype(int))
+        step_ts_prev = step_ts[1:] + [-1]  # -1 sentinel → alpha_bar_prev = 1.0
+        x = x_noisy.detach().clone()
+        pred_xstart = None
+        for t_ddpm, t_ddpm_prev in zip(step_ts, step_ts_prev):
+            alpha_bar_t      = float(alphas[t_ddpm])
+            alpha_bar_t_prev = float(alphas[t_ddpm_prev]) if t_ddpm_prev >= 0 else 1.0
+            t_tensor = torch.tensor([t_ddpm] * x.shape[0], device=x.device)
+            out = self.diffuser.p_mean_variance(model, x, t_tensor)
+            pred_xstart = out['pred_xstart']
+            eps_pred = (x - math.sqrt(alpha_bar_t) * pred_xstart) / math.sqrt(1.0 - alpha_bar_t)
+            sigma_ddim = eta * math.sqrt(
+                (1.0 - alpha_bar_t_prev) / (1.0 - alpha_bar_t) *
+                max(0.0, 1.0 - alpha_bar_t / alpha_bar_t_prev)
+            )
+            direction = math.sqrt(max(0.0, 1.0 - alpha_bar_t_prev - sigma_ddim ** 2))
+            x = (math.sqrt(alpha_bar_t_prev) * pred_xstart
+                 + direction * eps_pred
+                 + sigma_ddim * torch.randn_like(x))
+        return x, pred_xstart
+
+    def denoise_one_step(self, noise_lvl, model, x_noisy):
+        noise_lvl = noise_lvl.float()
+        self.gen_schedule(noise_lvl)
+        t_idx = len(self.ts) - 1
+        t_tensor = torch.tensor([t_idx] * x_noisy.shape[0], device=x_noisy.device)
+        out = self.diffuser.p_mean_variance(model, x_noisy, t_tensor)
+        sigma = noise_lvl[0].item()
+        x_0 = out['pred_xstart'] + sigma * torch.randn_like(x_noisy)
+        return x_0, out['pred_xstart']
+
+    # def denoise_one_step(self, noise_lvl, model, x_noisy):
+    #     noise_lvl = noise_lvl.float()
+    #     self.gen_schedule(noise_lvl)
+    #     t_idx = len(self.ts) - 1
+    #     t_tensor = torch.tensor([t_idx] * x_noisy.shape[0], device=x_noisy.device)
+    #     out = self.diffuser.p_mean_variance(model, x_noisy, t_tensor)
+    #     x_0_hat = out['pred_xstart']                             # clean, for gradient
+    #     posterior_std = torch.exp(0.5 * out['log_variance'])
+    #     x_0 = out['mean'] + posterior_std * torch.randn_like(x_noisy)  # stochastic, for state
+    #     return x_0, x_0_hat
+
+
 
 
 # =================
@@ -888,6 +965,7 @@ def extract_and_expand(array, time, target):
     array = torch.from_numpy(array).to(target.device)[time].float()
     while array.ndim < target.ndim:
         array = array.unsqueeze(-1)
+    
     return array.expand_as(target)
 
 

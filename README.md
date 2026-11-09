@@ -54,9 +54,9 @@ pip install -r requirements.txt
 
 ```
 python3 sample_condition.py \
---model_config=./configs/model_{MODEL-NAME}_config.yaml \
---diffusion_config=./configs/diffusion_config_{ALG-NAME}.yaml \
---task_config=./configs/{TASK-NAME}_{MODEL-NAME}_{ALG-NAME}.yaml;
+--model_config=./configs/model_ffhq_config.yaml \
+--diffusion_config=./configs/diffusion_config_pnp.yaml \
+--task_config=./configs/super_resolution_ffhq_pnp.yaml;
 ```
 
 where:

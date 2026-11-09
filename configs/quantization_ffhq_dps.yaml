@@ -5,7 +5,7 @@ conditioning:
 
 data:
   name: general
-  root: ./data/ffhq
+  root: ./data/ffhq_1k_samples
 
 measurement:
   operator:
